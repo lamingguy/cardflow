@@ -25,12 +25,10 @@
 <div class="max-w-5xl mx-auto">
     <header class="flex justify-between items-center mb-10">
         <div class="flex items-center gap-4">
-            <div class="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-200">
-                <i class="fas fa-robot text-2xl"></i>
-            </div>
+            <img src="cardflow_icon.png" class="w-14 h-14 rounded-2xl shadow-xl shadow-blue-100 object-cover">
             <div>
                 <h1 class="text-2xl font-extrabold tracking-tight">CardFlow AI</h1>
-                <p class="text-sm text-slate-500 font-medium">智能名片識別系統 v2.0</p>
+                <p class="text-sm text-slate-500 font-medium lowercase">powered by laminguy</p>
             </div>
         </div>
         <div class="hidden md:flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-full text-xs font-bold">
@@ -47,7 +45,7 @@
         <button onclick="document.getElementById('file-input').click()" class="bg-blue-600 text-white px-10 py-5 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 active:scale-95 text-lg">
             <i class="fas fa-camera mr-2"></i> 拍攝或選擇名片
         </button>
-        <p class="mt-6 text-slate-400 text-sm font-medium">支援拍照與上傳，AI 自動同步至 Notion</p>
+        <p class="mt-6 text-slate-400 text-sm font-medium">AI 自動同步至 Notion</p>
     </div>
 
     <div>
@@ -138,4 +136,117 @@
             if (result.error) { alert("❌ AI 錯誤：" + result.error); return; }
             
             let data = {};
-            if (result.response && typeof
+            if (result.response && typeof result.response === 'object') {
+                data = result.response;
+            } else {
+                let aiText = String(result.response || result.description || JSON.stringify(result));
+                const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+                if (jsonMatch) data = JSON.parse(jsonMatch[0]);
+            }
+            
+            document.getElementById('f-name').value = data.name || data.Name || data.NAME || "";
+            document.getElementById('f-title').value = data.title || data.Title || data.TITLE || data.job_title || "";
+            document.getElementById('f-company').value = data.company || data.Company || data.COMPANY || "";
+            document.getElementById('f-phone').value = data.phone || data.Phone || data.PHONE || "";
+            document.getElementById('f-email').value = data.email || data.Email || data.EMAIL || "";
+
+        } catch (err) {
+            console.error(err);
+            alert("❌ 解析失敗");
+        } finally {
+            document.getElementById('ai-loading').classList.add('hidden');
+            document.getElementById('ai-form').classList.remove('hidden');
+        }
+    }
+
+    async function saveToNotion() {
+        const btn = document.getElementById('sync-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<div class="loader h-5 w-5 mr-3 inline-block"></div> 同步中...';
+
+        const name = document.getElementById('f-name').value || "未命名";
+        const title = document.getElementById('f-title').value;
+        const company = document.getElementById('f-company').value;
+        const phone = document.getElementById('f-phone').value;
+        const email = document.getElementById('f-email').value;
+
+        const properties = {
+            "Name": { title: [{ text: { content: name } }] },
+            "Job Title": { rich_text: [{ text: { content: title } }] },
+            "Company": { rich_text: [{ text: { content: company } }] }
+        };
+        if (phone.trim()) properties["Phone"] = { phone_number: phone };
+        if (email.trim()) properties["Email"] = { email: email };
+
+        try {
+            const res = await fetch(PROXY_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ parent: { database_id: DATABASE_ID }, properties: properties })
+            });
+            if (res.ok) {
+                renderCardToUI(name, title, company, email, currentImageURL);
+                closeModal();
+            } else {
+                const err = await res.json();
+                alert("❌ 同步失敗：" + (err.message || "未知錯誤"));
+            }
+        } catch (e) {
+            alert("❌ 網路錯誤");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fab fa-neos text-xl"></i> 同步至 Notion';
+        }
+    }
+
+    function renderCardToUI(name, title, company, email, imgUrl) {
+        const grid = document.getElementById('contacts-grid');
+        const empty = document.getElementById('empty-state');
+        if (empty) empty.remove();
+
+        const card = document.createElement('div');
+        card.className = "bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col gap-5 group";
+        card.innerHTML = `
+            <div class="flex items-center gap-4">
+                <div class="relative w-16 h-16 shrink-0 cursor-zoom-in" onclick="openImageViewer('${imgUrl}')">
+                    <img src="${imgUrl}" class="w-full h-full object-cover rounded-2xl border border-slate-200">
+                </div>
+                <div class="min-w-0">
+                    <h3 class="font-bold text-slate-900 truncate">${name}</h3>
+                    <p class="text-[10px] text-blue-600 font-bold uppercase tracking-widest truncate">${title || '無職稱'}</p>
+                </div>
+            </div>
+            <div class="text-sm text-slate-500 space-y-2 bg-slate-50 p-4 rounded-2xl">
+                <p class="truncate"><i class="far fa-building mr-2 text-slate-400"></i>${company || '-'}</p>
+                <p class="truncate"><i class="far fa-envelope mr-2 text-slate-400"></i>${email || '-'}</p>
+            </div>
+            <div class="flex justify-between items-center text-[10px] font-bold text-green-700">
+                <span><i class="fas fa-check-circle mr-1"></i>已同步</span>
+                <i class="fab fa-neos text-slate-300"></i>
+            </div>
+        `;
+        grid.insertBefore(card, grid.firstChild);
+    }
+
+    function openImageViewer(url) {
+        const v = document.getElementById('image-viewer-modal');
+        const img = document.getElementById('viewer-img');
+        img.src = url;
+        v.classList.remove('hidden');
+        setTimeout(() => img.classList.replace('scale-95', 'scale-100'), 10);
+    }
+
+    function closeImageViewer() {
+        const v = document.getElementById('image-viewer-modal');
+        const img = document.getElementById('viewer-img');
+        img.classList.replace('scale-100', 'scale-95');
+        setTimeout(() => v.classList.add('hidden'), 150);
+    }
+
+    function closeModal() {
+        document.getElementById('ocr-modal').classList.add('hidden');
+        document.getElementById('file-input').value = ""; 
+    }
+</script>
+</body>
+</html>
