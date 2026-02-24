@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CardFlow AI - 智能名片掃描器</title>
+    
+    <link rel="apple-touch-icon" href="cardflow_icon.png">
+    <link rel="icon" type="image/png" href="cardflow_icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CardFlow">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -28,7 +35,7 @@
         </div>
         <div class="hidden md:flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-full text-xs font-bold">
             <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            Notion API 已連線
+            Cloudflare AI 已就緒
         </div>
     </header>
 
@@ -40,7 +47,7 @@
         <button onclick="document.getElementById('file-input').click()" class="bg-blue-600 text-white px-10 py-5 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 active:scale-95 text-lg">
             <i class="fas fa-camera mr-2"></i> 拍攝或選擇名片
         </button>
-        <p class="mt-6 text-slate-400 text-sm font-medium">支援所有圖片格式，AI 將自動提取並同步至 Notion</p>
+        <p class="mt-6 text-slate-400 text-sm font-medium">支援拍照與上傳，AI 自動同步至 Notion</p>
     </div>
 
     <div>
@@ -50,7 +57,7 @@
         <div id="contacts-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div id="empty-state" class="col-span-full py-16 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
                 <i class="fas fa-inbox text-4xl text-slate-300 mb-4"></i>
-                <p class="text-slate-400 font-medium">尚未掃描任何名片，資料將顯示於此</p>
+                <p class="text-slate-400 font-medium">尚未掃描任何名片</p>
             </div>
         </div>
     </div>
@@ -58,51 +65,46 @@
     <div id="ocr-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 flex items-center justify-center p-4">
         <div class="bg-white rounded-[2rem] w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row shadow-2xl">
             <div class="md:w-1/2 p-8 bg-slate-50 flex items-center justify-center border-r border-slate-100">
-                <div class="relative group w-full">
-                    <img id="preview-img" class="max-w-full max-h-[60vh] rounded-2xl shadow-lg mx-auto object-contain" src="">
-                </div>
+                <img id="preview-img" class="max-w-full max-h-[60vh] rounded-2xl shadow-lg mx-auto object-contain" src="">
             </div>
             
             <div class="md:w-1/2 p-10 overflow-y-auto flex flex-col">
                 <div class="flex justify-between items-center mb-8">
-                    <div>
-                        <h2 class="text-2xl font-bold text-slate-900">AI 識別結果</h2>
-                        <p class="text-sm text-blue-600 font-bold mt-1 uppercase tracking-widest">Verify & Sync</p>
-                    </div>
-                    <button onclick="closeModal()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 transition-colors"><i class="fas fa-times text-xl"></i></button>
+                    <h2 class="text-2xl font-bold text-slate-900">AI 識別結果</h2>
+                    <button onclick="closeModal()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><i class="fas fa-times text-xl"></i></button>
                 </div>
 
                 <div id="ai-loading" class="hidden py-16 text-center">
                     <div class="loader ease-linear rounded-full border-4 border-t-4 border-slate-200 h-14 w-14 mx-auto mb-6"></div>
-                    <p class="text-slate-900 font-bold text-lg">AI 正在深度掃描中...</p>
+                    <p class="text-slate-900 font-bold text-lg">AI 掃描中...</p>
                 </div>
 
                 <div id="ai-form" class="space-y-6">
                     <div class="space-y-4">
-                        <div class="relative">
-                            <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">姓名 / Name</label>
+                        <label class="block">
+                            <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">姓名 / Name</span>
                             <input id="f-name" type="text" class="w-full bg-slate-50 border-none rounded-xl p-4 outline-none focus:ring-2 focus:ring-blue-500 font-bold text-lg">
-                        </div>
+                        </label>
                         <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">職稱 / Title</label>
+                            <label>
+                                <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">職稱 / Title</span>
                                 <input id="f-title" type="text" class="w-full bg-slate-50 border-none rounded-xl p-4 outline-none focus:ring-2 focus:ring-blue-500 font-medium">
-                            </div>
-                            <div>
-                                <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">公司 / Company</label>
+                            </label>
+                            <label>
+                                <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">公司 / Company</span>
                                 <input id="f-company" type="text" class="w-full bg-slate-50 border-none rounded-xl p-4 outline-none focus:ring-2 focus:ring-blue-500 font-medium">
-                            </div>
+                            </label>
                         </div>
-                        <div>
-                            <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">聯絡電話 / Phone</label>
+                        <label class="block">
+                            <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">聯絡電話 / Phone</span>
                             <input id="f-phone" type="tel" class="w-full bg-slate-50 border-none rounded-xl p-4 outline-none focus:ring-2 focus:ring-blue-500 font-medium">
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">電子郵件 / Email</label>
+                        </label>
+                        <label class="block">
+                            <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">電子郵件 / Email</span>
                             <input id="f-email" type="email" class="w-full bg-slate-50 border-none rounded-xl p-4 outline-none focus:ring-2 focus:ring-blue-500 font-medium">
-                        </div>
+                        </label>
                     </div>
-                    <button id="sync-btn" onclick="saveToNotion()" class="w-full py-5 bg-slate-900 text-white rounded-2xl font-bold mt-4 hover:bg-black transition-all shadow-xl flex items-center justify-center gap-3">
+                    <button id="sync-btn" onclick="saveToNotion()" class="w-full py-5 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black transition-all shadow-xl flex items-center justify-center gap-3">
                         <i class="fab fa-neos text-xl"></i> 同步至 Notion
                     </button>
                 </div>
@@ -112,23 +114,17 @@
 
     <div id="image-viewer-modal" class="hidden fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 cursor-zoom-out" onclick="closeImageViewer()">
         <img id="viewer-img" class="max-w-full max-h-[90vh] rounded-xl shadow-2xl object-contain transition-transform transform scale-95" src="">
-        <div class="absolute top-6 right-6 text-white bg-white/10 w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors cursor-pointer">
-            <i class="fas fa-times text-xl"></i>
-        </div>
     </div>
 
 </div>
 
 <script>
     const PROXY_URL = 'https://notion-cors-api.laminguy.workers.dev/'; 
-    // ⚠️ 已經把 NOTION_TOKEN 刪除了，這才是安全的做法！
     const DATABASE_ID = '3109eb6e9b62806f9910ea5abad0b878';
-    
     let currentImageURL = "";
 
     async function processImage(file) {
         if (!file) return;
-
         currentImageURL = URL.createObjectURL(file);
         document.getElementById('preview-img').src = currentImageURL;
         document.getElementById('ocr-modal').classList.remove('hidden');
@@ -139,132 +135,7 @@
             const response = await fetch(`${PROXY_URL}analyze`, { method: 'POST', body: file });
             const result = await response.json();
             
-            if (result.error) { alert("❌ Worker 錯誤：" + result.error); return; }
+            if (result.error) { alert("❌ AI 錯誤：" + result.error); return; }
             
             let data = {};
-            if (result.response && typeof result.response === 'object') {
-                data = result.response;
-            } else {
-                let aiText = String(result.response || result.description || JSON.stringify(result));
-                const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-                if (jsonMatch) data = JSON.parse(jsonMatch[0]);
-            }
-            
-            document.getElementById('f-name').value = data.name || data.Name || data.NAME || "";
-            document.getElementById('f-title').value = data.title || data.Title || data.TITLE || data.job_title || "";
-            document.getElementById('f-company').value = data.company || data.Company || data.COMPANY || "";
-            document.getElementById('f-phone').value = data.phone || data.Phone || data.PHONE || "";
-            document.getElementById('f-email').value = data.email || data.Email || data.EMAIL || "";
-
-        } catch (err) {
-            console.error("出錯:", err);
-            alert("❌ 解析失敗");
-        } finally {
-            document.getElementById('ai-loading').classList.add('hidden');
-            document.getElementById('ai-form').classList.remove('hidden');
-        }
-    }
-
-    async function saveToNotion() {
-        const btn = document.getElementById('sync-btn');
-        btn.disabled = true;
-        btn.innerHTML = '<div class="loader h-5 w-5 mr-3 inline-block align-middle"></div> 同步中...';
-
-        const nameVal = document.getElementById('f-name').value || "未命名聯絡人";
-        const titleVal = document.getElementById('f-title').value;
-        const companyVal = document.getElementById('f-company').value;
-        const phoneVal = document.getElementById('f-phone').value;
-        const emailVal = document.getElementById('f-email').value;
-
-        const properties = {
-            "Name": { title: [{ text: { content: nameVal } }] },
-            "Job Title": { rich_text: [{ text: { content: titleVal } }] },
-            "Company": { rich_text: [{ text: { content: companyVal } }] }
-        };
-
-        if (phoneVal.trim() !== "") properties["Phone"] = { phone_number: phoneVal };
-        if (emailVal.trim() !== "") properties["Email"] = { email: emailVal };
-
-        try {
-            const res = await fetch(PROXY_URL, {
-                method: 'POST',
-                // ⚠️ 這裡不再發送 Authorization 標頭，交給 Cloudflare 處理
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ parent: { database_id: DATABASE_ID }, properties: properties })
-            });
-            
-            const responseData = await res.json(); 
-
-            if (res.ok) {
-                renderCardToUI(nameVal, titleVal, companyVal, emailVal, currentImageURL);
-                closeModal();
-            } else {
-                alert("❌ 同步失敗：" + (responseData.message || "未知錯誤"));
-            }
-        } catch (e) {
-            alert("❌ 網路錯誤");
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fab fa-neos text-xl"></i> 同步至 Notion';
-        }
-    }
-
-    function renderCardToUI(name, title, company, email, imgUrl) {
-        const grid = document.getElementById('contacts-grid');
-        const emptyState = document.getElementById('empty-state');
-        if (emptyState) emptyState.remove();
-
-        const card = document.createElement('div');
-        card.className = "bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-lg transition-all duration-300 flex flex-col gap-5 relative overflow-hidden group";
-        
-        card.innerHTML = `
-            <div class="flex items-center gap-4">
-                <div class="relative w-16 h-16 shrink-0 cursor-zoom-in group/img" onclick="openImageViewer('${imgUrl}')">
-                    <img src="${imgUrl}" class="w-full h-full object-cover rounded-2xl shadow-sm border border-slate-200">
-                    <div class="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white">
-                        <i class="fas fa-search-plus"></i>
-                    </div>
-                </div>
-                <div class="min-w-0">
-                    <h3 class="font-bold text-slate-900 text-lg truncate">${name}</h3>
-                    <p class="text-[10px] text-blue-600 font-bold uppercase tracking-widest truncate">${title || '無職稱'}</p>
-                </div>
-            </div>
-            
-            <div class="text-sm text-slate-500 space-y-2 bg-slate-50 p-4 rounded-2xl">
-                <p class="flex items-center gap-3 truncate"><i class="far fa-building w-4 text-center text-slate-400"></i> ${company || '無公司資訊'}</p>
-                <p class="flex items-center gap-3 truncate"><i class="far fa-envelope w-4 text-center text-slate-400"></i> ${email || '無 Email'}</p>
-            </div>
-            
-            <div class="pt-2 mt-auto flex justify-between items-center">
-                <span class="text-[10px] font-bold text-green-700 bg-green-100 px-3 py-1.5 rounded-lg flex items-center gap-1">
-                    <i class="fas fa-check-circle"></i> 已同步至 Notion
-                </span>
-                <i class="fab fa-neos text-slate-300 group-hover:text-blue-500 transition-colors text-xl"></i>
-            </div>
-        `;
-        grid.insertBefore(card, grid.firstChild);
-    }
-
-    function openImageViewer(url) {
-        const viewer = document.getElementById('image-viewer-modal');
-        const img = document.getElementById('viewer-img');
-        img.src = url;
-        viewer.classList.remove('hidden');
-        setTimeout(() => img.classList.replace('scale-95', 'scale-100'), 10);
-    }
-
-    function closeImageViewer() {
-        const viewer = document.getElementById('image-viewer-modal');
-        const img = document.getElementById('viewer-img');
-        img.classList.replace('scale-100', 'scale-95');
-        setTimeout(() => viewer.classList.add('hidden'), 150);
-    }
-
-    function closeModal() {
-        document.getElementById('ocr-modal').classList.add('hidden');
-        document.getElementById('file-input').value = ""; 
-    }
-</script>
-</body>
-</html>
+            if (result.response && typeof
