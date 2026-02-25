@@ -13,11 +13,18 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
         * { font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; }
         .loader { border-top-color: #3b82f6; animation: spinner 1s linear infinite; }
         @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* 裁切器容器樣式 */
+        .img-container { max-height: 60vh; width: 100%; display: flex; justify-content: center; background-color: #000; }
+        .img-container img { max-width: 100%; max-height: 100%; display: block; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen p-4 md:p-8 pb-20">
@@ -41,7 +48,7 @@
         <div class="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:bg-blue-50 transition-colors">
             <i class="fas fa-cloud-upload-alt text-3xl text-slate-300 group-hover:text-blue-500 transition-colors"></i>
         </div>
-        <input type="file" id="file-input" class="hidden" accept="image/*" onchange="processImage(this.files[0])">
+        <input type="file" id="file-input" class="hidden" accept="image/*" onchange="openCropModal(this.files[0])">
         <button onclick="document.getElementById('file-input').click()" class="bg-blue-600 text-white px-10 py-5 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 active:scale-95 text-lg">
             <i class="fas fa-camera mr-2"></i> 拍攝或選擇名片
         </button>
@@ -56,6 +63,24 @@
             <div id="empty-state" class="col-span-full py-16 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
                 <i class="fas fa-inbox text-4xl text-slate-300 mb-4"></i>
                 <p class="text-slate-400 font-medium">尚未掃描任何名片</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="crop-modal" class="hidden fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4">
+        <div class="w-full max-w-3xl bg-slate-800 rounded-3xl overflow-hidden shadow-2xl border border-slate-700">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center text-white">
+                <h3 class="font-bold text-lg"><i class="fas fa-crop-alt text-blue-400 mr-2"></i> 裁切名片範圍</h3>
+                <button onclick="closeCropModal()" class="text-slate-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div class="img-container bg-black p-4">
+                <img id="image-to-crop" src="">
+            </div>
+            <div class="p-6 flex justify-end gap-4 bg-slate-800">
+                <button onclick="closeCropModal()" class="px-6 py-3 rounded-xl font-bold text-slate-300 hover:bg-slate-700 transition-colors">取消</button>
+                <button onclick="confirmCropAndScan()" class="px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-500 transition-all shadow-lg shadow-blue-900/50 flex items-center gap-2">
+                    <i class="fas fa-check"></i> 確認並掃描
+                </button>
             </div>
         </div>
     </div>
@@ -120,49 +145,92 @@
     const PROXY_URL = 'https://notion-cors-api.laminguy.workers.dev/'; 
     const DATABASE_ID = '3109eb6e9b62806f9910ea5abad0b878';
     let currentImageURL = "";
+    let cropper = null;
 
-    async function processImage(file) {
+    // --- 1. 開啟裁切視窗 ---
+    function openCropModal(file) {
         if (!file) return;
-        currentImageURL = URL.createObjectURL(file);
-        document.getElementById('preview-img').src = currentImageURL;
+        const url = URL.createObjectURL(file);
+        const imageElement = document.getElementById('image-to-crop');
+        imageElement.src = url;
+        
+        document.getElementById('crop-modal').classList.remove('hidden');
+
+        // 初始化或重置 Cropper
+        if (cropper) { cropper.destroy(); }
+        cropper = new Cropper(imageElement, {
+            viewMode: 1,
+            autoCropArea: 0.9,
+            background: false,
+            zoomable: true
+        });
+    }
+
+    function closeCropModal() {
+        document.getElementById('crop-modal').classList.add('hidden');
+        document.getElementById('file-input').value = ""; // 清空 input
+        if (cropper) { cropper.destroy(); cropper = null; }
+    }
+
+    // --- 2. 確認裁切並送出給 AI ---
+    function confirmCropAndScan() {
+        if (!cropper) return;
+        
+        // 隱藏裁切視窗，顯示 Loading 視窗
+        document.getElementById('crop-modal').classList.add('hidden');
         document.getElementById('ocr-modal').classList.remove('hidden');
         document.getElementById('ai-loading').classList.remove('hidden');
         document.getElementById('ai-form').classList.add('hidden');
 
-        try {
-            const response = await fetch(`${PROXY_URL}analyze`, { method: 'POST', body: file });
-            const result = await response.json();
+        // 將裁切後的畫面轉換為 Blob 檔案
+        cropper.getCroppedCanvas({
+            maxWidth: 1500, // 限制最大寬度避免檔案過大
+            maxHeight: 1500
+        }).toBlob(async (blob) => {
+            if (cropper) { cropper.destroy(); cropper = null; }
             
-            if (result.error) { alert("❌ AI 錯誤：" + result.error); return; }
-            
-            let data = {};
-            if (result.response && typeof result.response === 'object') {
-                data = result.response;
-            } else {
-                let aiText = String(result.response || result.description || JSON.stringify(result));
-                const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-                if (jsonMatch) data = JSON.parse(jsonMatch[0]);
-            }
-            
-            document.getElementById('f-name').value = data.name || data.Name || data.NAME || "";
-            document.getElementById('f-title').value = data.title || data.Title || data.TITLE || data.job_title || "";
-            document.getElementById('f-company').value = data.company || data.Company || data.COMPANY || "";
-            document.getElementById('f-phone').value = data.phone || data.Phone || data.PHONE || "";
-            document.getElementById('f-email').value = data.email || data.Email || data.EMAIL || "";
+            // 建立預覽圖
+            currentImageURL = URL.createObjectURL(blob);
+            document.getElementById('preview-img').src = currentImageURL;
 
-        } catch (err) {
-            console.error(err);
-            alert("❌ 解析失敗");
-        } finally {
-            document.getElementById('ai-loading').classList.add('hidden');
-            document.getElementById('ai-form').classList.remove('hidden');
-        }
+            // 傳送給 AI
+            try {
+                const response = await fetch(`${PROXY_URL}analyze`, { method: 'POST', body: blob });
+                const result = await response.json();
+                
+                if (result.error) { alert("❌ AI 錯誤：" + result.error); return; }
+                
+                let data = {};
+                if (result.response && typeof result.response === 'object') {
+                    data = result.response;
+                } else {
+                    let aiText = String(result.response || result.description || JSON.stringify(result));
+                    const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) data = JSON.parse(jsonMatch[0]);
+                }
+                
+                document.getElementById('f-name').value = data.name || data.Name || data.NAME || "";
+                document.getElementById('f-title').value = data.title || data.Title || data.TITLE || data.job_title || "";
+                document.getElementById('f-company').value = data.company || data.Company || data.COMPANY || "";
+                document.getElementById('f-phone').value = data.phone || data.Phone || data.PHONE || "";
+                document.getElementById('f-email').value = data.email || data.Email || data.EMAIL || "";
+
+            } catch (err) {
+                console.error(err);
+                alert("❌ 解析失敗");
+            } finally {
+                document.getElementById('ai-loading').classList.add('hidden');
+                document.getElementById('ai-form').classList.remove('hidden');
+                document.getElementById('file-input').value = "";
+            }
+        }, 'image/jpeg', 0.85); // 輸出 JPEG 格式，品質 85%
     }
 
+    // --- 3. Notion 同步邏輯 ---
     async function saveToNotion() {
         const btn = document.getElementById('sync-btn');
         btn.disabled = true;
-        btn.innerHTML = '<div class="loader h-5 w-5 mr-3 inline-block"></div> 同步中...';
+        btn.innerHTML = '<div class="loader h-5 w-5 mr-3 inline-block align-middle"></div> 同步中...';
 
         const name = document.getElementById('f-name').value || "未命名";
         const title = document.getElementById('f-title').value;
@@ -205,7 +273,7 @@
         if (empty) empty.remove();
 
         const card = document.createElement('div');
-        card.className = "bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col gap-5 group";
+        card.className = "bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col gap-5 group hover:shadow-lg transition-all";
         card.innerHTML = `
             <div class="flex items-center gap-4">
                 <div class="relative w-16 h-16 shrink-0 cursor-zoom-in" onclick="openImageViewer('${imgUrl}')">
@@ -217,12 +285,12 @@
                 </div>
             </div>
             <div class="text-sm text-slate-500 space-y-2 bg-slate-50 p-4 rounded-2xl">
-                <p class="truncate"><i class="far fa-building mr-2 text-slate-400"></i>${company || '-'}</p>
-                <p class="truncate"><i class="far fa-envelope mr-2 text-slate-400"></i>${email || '-'}</p>
+                <p class="truncate"><i class="far fa-building w-5 text-slate-400 text-center"></i>${company || '-'}</p>
+                <p class="truncate"><i class="far fa-envelope w-5 text-slate-400 text-center"></i>${email || '-'}</p>
             </div>
             <div class="flex justify-between items-center text-[10px] font-bold text-green-700">
-                <span><i class="fas fa-check-circle mr-1"></i>已同步</span>
-                <i class="fab fa-neos text-slate-300"></i>
+                <span class="bg-green-100 px-2 py-1 rounded"><i class="fas fa-check-circle mr-1"></i>已同步</span>
+                <i class="fab fa-neos text-slate-300 text-lg"></i>
             </div>
         `;
         grid.insertBefore(card, grid.firstChild);
@@ -245,7 +313,6 @@
 
     function closeModal() {
         document.getElementById('ocr-modal').classList.add('hidden');
-        document.getElementById('file-input').value = ""; 
     }
 </script>
 </body>
