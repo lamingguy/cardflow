@@ -13,7 +13,6 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    
     <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
@@ -22,12 +21,11 @@
         * { font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; }
         .loader { border-top-color: #3b82f6; animation: spinner 1s linear infinite; }
         @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        /* 裁切器容器樣式 */
         .img-container { max-height: 60vh; width: 100%; display: flex; justify-content: center; background-color: #000; }
         .img-container img { max-width: 100%; max-height: 100%; display: block; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen p-4 md:p-8 pb-20">
+<body class="bg-slate-50 text-slate-800 min-h-screen p-4 md:p-8 pb-20" onload="loadHistory()">
 
 <div class="max-w-5xl mx-auto">
     <header class="flex justify-between items-center mb-10">
@@ -40,7 +38,7 @@
         </div>
         <div class="hidden md:flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-full text-xs font-bold">
             <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            Cloudflare AI 已就緒
+            系統已就緒
         </div>
     </header>
 
@@ -52,19 +50,16 @@
         <button onclick="document.getElementById('file-input').click()" class="bg-blue-600 text-white px-10 py-5 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 active:scale-95 text-lg">
             <i class="fas fa-camera mr-2"></i> 拍攝或選擇名片
         </button>
-        <p class="mt-6 text-slate-400 text-sm font-medium">AI 自動同步至 Notion</p>
+        <p class="mt-6 text-slate-400 text-sm font-medium">AI 辨識並自動儲存影像至 Notion</p>
     </div>
 
     <div>
-        <h2 class="text-xl font-bold mb-6 text-slate-800 flex items-center gap-2">
-            <i class="fas fa-history text-blue-500"></i> 本次掃描紀錄
+        <h2 class="text-xl font-bold mb-6 text-slate-800 flex items-center justify-between">
+            <div><i class="fas fa-history text-blue-500 mr-2"></i> 本機掃描紀錄</div>
+            <button onclick="clearAllHistory()" class="text-xs text-red-400 hover:text-red-600 font-bold bg-red-50 px-3 py-1 rounded-lg">清空紀錄</button>
         </h2>
         <div id="contacts-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div id="empty-state" class="col-span-full py-16 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
-                <i class="fas fa-inbox text-4xl text-slate-300 mb-4"></i>
-                <p class="text-slate-400 font-medium">尚未掃描任何名片</p>
             </div>
-        </div>
     </div>
 
     <div id="crop-modal" class="hidden fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4">
@@ -78,7 +73,7 @@
             </div>
             <div class="p-6 flex justify-end gap-4 bg-slate-800">
                 <button onclick="closeCropModal()" class="px-6 py-3 rounded-xl font-bold text-slate-300 hover:bg-slate-700 transition-colors">取消</button>
-                <button onclick="confirmCropAndScan()" class="px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-500 transition-all shadow-lg shadow-blue-900/50 flex items-center gap-2">
+                <button onclick="confirmCropAndScan()" class="px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-500 transition-all shadow-lg flex items-center gap-2">
                     <i class="fas fa-check"></i> 確認並掃描
                 </button>
             </div>
@@ -91,9 +86,9 @@
                 <img id="preview-img" class="max-w-full max-h-[60vh] rounded-2xl shadow-lg mx-auto object-contain" src="">
             </div>
             
-            <div class="md:w-1/2 p-10 overflow-y-auto flex flex-col">
+            <div class="md:w-1/2 p-10 overflow-y-auto flex flex-col relative">
                 <div class="flex justify-between items-center mb-8">
-                    <h2 class="text-2xl font-bold text-slate-900">AI 識別結果</h2>
+                    <h2 class="text-2xl font-bold text-slate-900" id="modal-title">AI 識別結果</h2>
                     <button onclick="closeModal()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><i class="fas fa-times text-xl"></i></button>
                 </div>
 
@@ -103,6 +98,7 @@
                 </div>
 
                 <div id="ai-form" class="space-y-6">
+                    <input type="hidden" id="edit-id" value="">
                     <div class="space-y-4">
                         <label class="block">
                             <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">姓名 / Name</span>
@@ -130,6 +126,9 @@
                     <button id="sync-btn" onclick="saveToNotion()" class="w-full py-5 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black transition-all shadow-xl flex items-center justify-center gap-3">
                         <i class="fab fa-neos text-xl"></i> 同步至 Notion
                     </button>
+                    <button id="update-local-btn" onclick="updateLocalRecord()" class="hidden w-full py-5 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-xl flex items-center justify-center gap-3">
+                        <i class="fas fa-save text-xl"></i> 儲存本機修改
+                    </button>
                 </div>
             </div>
         </div>
@@ -144,62 +143,163 @@
 <script>
     const PROXY_URL = 'https://notion-cors-api.laminguy.workers.dev/'; 
     const DATABASE_ID = '3109eb6e9b62806f9910ea5abad0b878';
-    let currentImageURL = "";
-    let cropper = null;
+    
+    // ⚠️ 請填入您的 ImgBB API Key
+    const IMGBB_API_KEY = '4318916d644510c4aaa6527a1bb1c08b'; 
 
-    // --- 1. 開啟裁切視窗 ---
+    let currentBlob = null;
+    let currentThumbBase64 = "";
+    let cropper = null;
+    let scanHistory = [];
+
+    // --- 1. 本地儲存 (LocalStorage) 邏輯 ---
+    function loadHistory() {
+        const saved = localStorage.getItem('cardflow_history');
+        if (saved) {
+            scanHistory = JSON.parse(saved);
+            renderHistoryGrid();
+        } else {
+            renderEmptyState();
+        }
+    }
+
+    function saveHistory() {
+        localStorage.setItem('cardflow_history', JSON.stringify(scanHistory));
+        renderHistoryGrid();
+    }
+
+    function clearAllHistory() {
+        if(confirm("確定要清空手機上的所有掃描紀錄嗎？（Notion 上的資料不會被刪除）")) {
+            scanHistory = [];
+            saveHistory();
+        }
+    }
+
+    function renderEmptyState() {
+        document.getElementById('contacts-grid').innerHTML = `
+            <div id="empty-state" class="col-span-full py-16 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
+                <i class="fas fa-inbox text-4xl text-slate-300 mb-4"></i>
+                <p class="text-slate-400 font-medium">尚未掃描任何名片</p>
+            </div>
+        `;
+    }
+
+    function renderHistoryGrid() {
+        const grid = document.getElementById('contacts-grid');
+        grid.innerHTML = "";
+        if (scanHistory.length === 0) return renderEmptyState();
+
+        scanHistory.forEach(card => {
+            const cardEl = document.createElement('div');
+            cardEl.className = "bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col gap-5 group hover:shadow-lg transition-all relative";
+            cardEl.innerHTML = `
+                <div class="absolute top-4 right-4 flex gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onclick="editCard('${card.id}')" class="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center hover:bg-blue-100"><i class="fas fa-pen text-xs"></i></button>
+                    <button onclick="deleteCard('${card.id}')" class="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100"><i class="fas fa-trash text-xs"></i></button>
+                </div>
+                <div class="flex items-center gap-4 pr-16">
+                    <div class="relative w-16 h-16 shrink-0 cursor-zoom-in" onclick="openImageViewer('${card.thumb}')">
+                        <img src="${card.thumb}" class="w-full h-full object-cover rounded-2xl border border-slate-200">
+                    </div>
+                    <div class="min-w-0">
+                        <h3 class="font-bold text-slate-900 truncate">${card.name}</h3>
+                        <p class="text-[10px] text-blue-600 font-bold uppercase tracking-widest truncate">${card.title || '無職稱'}</p>
+                    </div>
+                </div>
+                <div class="text-sm text-slate-500 space-y-2 bg-slate-50 p-4 rounded-2xl">
+                    <p class="truncate"><i class="far fa-building w-5 text-slate-400 text-center"></i>${card.company || '-'}</p>
+                    <p class="truncate"><i class="far fa-envelope w-5 text-slate-400 text-center"></i>${card.email || '-'}</p>
+                </div>
+            `;
+            grid.appendChild(cardEl);
+        });
+    }
+
+    function deleteCard(id) {
+        if(confirm("確定要從本機移除這張名片嗎？")) {
+            scanHistory = scanHistory.filter(c => c.id !== id);
+            saveHistory();
+        }
+    }
+
+    function editCard(id) {
+        const card = scanHistory.find(c => c.id === id);
+        if(!card) return;
+        
+        document.getElementById('f-name').value = card.name;
+        document.getElementById('f-title').value = card.title;
+        document.getElementById('f-company').value = card.company;
+        document.getElementById('f-phone').value = card.phone;
+        document.getElementById('f-email').value = card.email;
+        document.getElementById('preview-img').src = card.thumb;
+        document.getElementById('edit-id').value = card.id;
+
+        document.getElementById('modal-title').innerText = "編輯本機紀錄";
+        document.getElementById('sync-btn').classList.add('hidden');
+        document.getElementById('update-local-btn').classList.remove('hidden');
+        
+        document.getElementById('ocr-modal').classList.remove('hidden');
+        document.getElementById('ai-form').classList.remove('hidden');
+        document.getElementById('ai-loading').classList.add('hidden');
+    }
+
+    function updateLocalRecord() {
+        const id = document.getElementById('edit-id').value;
+        const index = scanHistory.findIndex(c => c.id === id);
+        if(index > -1) {
+            scanHistory[index].name = document.getElementById('f-name').value;
+            scanHistory[index].title = document.getElementById('f-title').value;
+            scanHistory[index].company = document.getElementById('f-company').value;
+            scanHistory[index].phone = document.getElementById('f-phone').value;
+            scanHistory[index].email = document.getElementById('f-email').value;
+            saveHistory();
+            closeModal();
+        }
+    }
+
+    // --- 2. 裁切與 AI 掃描 ---
     function openCropModal(file) {
         if (!file) return;
         const url = URL.createObjectURL(file);
         const imageElement = document.getElementById('image-to-crop');
         imageElement.src = url;
-        
         document.getElementById('crop-modal').classList.remove('hidden');
 
-        // 初始化或重置 Cropper
         if (cropper) { cropper.destroy(); }
-        cropper = new Cropper(imageElement, {
-            viewMode: 1,
-            autoCropArea: 0.9,
-            background: false,
-            zoomable: true
-        });
+        cropper = new Cropper(imageElement, { viewMode: 1, autoCropArea: 0.9, background: false, zoomable: true });
     }
 
     function closeCropModal() {
         document.getElementById('crop-modal').classList.add('hidden');
-        document.getElementById('file-input').value = ""; // 清空 input
+        document.getElementById('file-input').value = ""; 
         if (cropper) { cropper.destroy(); cropper = null; }
     }
 
-    // --- 2. 確認裁切並送出給 AI ---
-  function confirmCropAndScan() {
+    function confirmCropAndScan() {
         if (!cropper) return;
         
         document.getElementById('crop-modal').classList.add('hidden');
         document.getElementById('ocr-modal').classList.remove('hidden');
         document.getElementById('ai-loading').classList.remove('hidden');
         document.getElementById('ai-form').classList.add('hidden');
+        
+        document.getElementById('modal-title').innerText = "AI 識別結果";
+        document.getElementById('sync-btn').classList.remove('hidden');
+        document.getElementById('update-local-btn').classList.add('hidden');
 
-        // 💡 加入 fillColor: '#fff'，防止裁切後的背景變成全黑
-        cropper.getCroppedCanvas({
-            maxWidth: 1500, 
-            maxHeight: 1500,
-            fillColor: '#fff' 
-        }).toBlob(async (blob) => {
+        // 產生壓縮版縮圖 (儲存於本機，避免塞爆 LocalStorage)
+        currentThumbBase64 = cropper.getCroppedCanvas({ width: 300, height: 300, fillColor: '#fff' }).toDataURL('image/jpeg', 0.6);
+
+        // 產生給 AI 分析和上傳的高清圖 Blob
+        cropper.getCroppedCanvas({ maxWidth: 1500, maxHeight: 1500, fillColor: '#fff' }).toBlob(async (blob) => {
+            currentBlob = blob; // 存起來等一下上傳用
             if (cropper) { cropper.destroy(); cropper = null; }
-            
-            currentImageURL = URL.createObjectURL(blob);
-            document.getElementById('preview-img').src = currentImageURL;
+            document.getElementById('preview-img').src = currentThumbBase64;
 
             try {
                 const response = await fetch(`${PROXY_URL}analyze`, { method: 'POST', body: blob });
                 const result = await response.json();
-                
-                // 💡 加回偵錯訊息，這樣我們就能看到 AI 到底回傳了什麼
-                console.log("🤖 AI 真實回傳結果:", result);
-                
-                if (result.error) { alert("❌ AI 錯誤：" + result.error); return; }
+                console.log("AI Result:", result);
                 
                 let data = {};
                 if (result.response && typeof result.response === 'object') {
@@ -217,8 +317,7 @@
                 document.getElementById('f-email').value = data.email || data.Email || data.EMAIL || "";
 
             } catch (err) {
-                console.error(err);
-                alert("❌ 解析失敗，請檢查瀏覽器 Console 尋找原因。");
+                alert("❌ 解析失敗，請手動輸入");
             } finally {
                 document.getElementById('ai-loading').classList.add('hidden');
                 document.getElementById('ai-form').classList.remove('hidden');
@@ -227,34 +326,63 @@
         }, 'image/jpeg', 0.85);
     }
 
-    // --- 3. Notion 同步邏輯 ---
+    // --- 3. 上傳圖片並同步至 Notion ---
     async function saveToNotion() {
         const btn = document.getElementById('sync-btn');
         btn.disabled = true;
-        btn.innerHTML = '<div class="loader h-5 w-5 mr-3 inline-block align-middle"></div> 同步中...';
-
-        const name = document.getElementById('f-name').value || "未命名";
-        const title = document.getElementById('f-title').value;
-        const company = document.getElementById('f-company').value;
-        const phone = document.getElementById('f-phone').value;
-        const email = document.getElementById('f-email').value;
-
-        const properties = {
-            "Name": { title: [{ text: { content: name } }] },
-            "Job Title": { rich_text: [{ text: { content: title } }] },
-            "Company": { rich_text: [{ text: { content: company } }] }
-        };
-        if (phone.trim()) properties["Phone"] = { phone_number: phone };
-        if (email.trim()) properties["Email"] = { email: email };
-
+        
         try {
+            let uploadedImageUrl = "";
+            
+            // 🚀 先把圖片上傳到 ImgBB 獲取網址
+            if (currentBlob) {
+                btn.innerHTML = '<div class="loader h-5 w-5 mr-3 inline-block align-middle"></div> 處理影像中...';
+                const formData = new FormData();
+                formData.append('image', currentBlob);
+                const imgRes = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: 'POST', body: formData });
+                const imgData = await imgRes.json();
+                if (imgData.success) {
+                    uploadedImageUrl = imgData.data.url;
+                }
+            }
+
+            btn.innerHTML = '<div class="loader h-5 w-5 mr-3 inline-block align-middle"></div> 同步至 Notion...';
+
+            const name = document.getElementById('f-name').value || "未命名";
+            const title = document.getElementById('f-title').value;
+            const company = document.getElementById('f-company').value;
+            const phone = document.getElementById('f-phone').value;
+            const email = document.getElementById('f-email').value;
+
+            const properties = {
+                "Name": { title: [{ text: { content: name } }] },
+                "Job Title": { rich_text: [{ text: { content: title } }] },
+                "Company": { rich_text: [{ text: { content: company } }] }
+            };
+            if (phone.trim()) properties["Phone"] = { phone_number: phone };
+            if (email.trim()) properties["Email"] = { email: email };
+            
+            // 🚀 將圖片網址寫入 Notion 的 Files & media 欄位
+            if (uploadedImageUrl) {
+                properties["Image"] = {
+                    files: [{ name: "Card Image", type: "external", external: { url: uploadedImageUrl } }]
+                };
+            }
+
             const res = await fetch(PROXY_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ parent: { database_id: DATABASE_ID }, properties: properties })
             });
+
             if (res.ok) {
-                renderCardToUI(name, title, company, email, currentImageURL);
+                // 將資料存入本機記憶體
+                scanHistory.unshift({
+                    id: Date.now().toString(),
+                    name, title, company, phone, email,
+                    thumb: currentThumbBase64 // 儲存輕量縮圖供本機顯示
+                });
+                saveHistory();
                 closeModal();
             } else {
                 const err = await res.json();
@@ -266,35 +394,6 @@
             btn.disabled = false;
             btn.innerHTML = '<i class="fab fa-neos text-xl"></i> 同步至 Notion';
         }
-    }
-
-    function renderCardToUI(name, title, company, email, imgUrl) {
-        const grid = document.getElementById('contacts-grid');
-        const empty = document.getElementById('empty-state');
-        if (empty) empty.remove();
-
-        const card = document.createElement('div');
-        card.className = "bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col gap-5 group hover:shadow-lg transition-all";
-        card.innerHTML = `
-            <div class="flex items-center gap-4">
-                <div class="relative w-16 h-16 shrink-0 cursor-zoom-in" onclick="openImageViewer('${imgUrl}')">
-                    <img src="${imgUrl}" class="w-full h-full object-cover rounded-2xl border border-slate-200">
-                </div>
-                <div class="min-w-0">
-                    <h3 class="font-bold text-slate-900 truncate">${name}</h3>
-                    <p class="text-[10px] text-blue-600 font-bold uppercase tracking-widest truncate">${title || '無職稱'}</p>
-                </div>
-            </div>
-            <div class="text-sm text-slate-500 space-y-2 bg-slate-50 p-4 rounded-2xl">
-                <p class="truncate"><i class="far fa-building w-5 text-slate-400 text-center"></i>${company || '-'}</p>
-                <p class="truncate"><i class="far fa-envelope w-5 text-slate-400 text-center"></i>${email || '-'}</p>
-            </div>
-            <div class="flex justify-between items-center text-[10px] font-bold text-green-700">
-                <span class="bg-green-100 px-2 py-1 rounded"><i class="fas fa-check-circle mr-1"></i>已同步</span>
-                <i class="fab fa-neos text-slate-300 text-lg"></i>
-            </div>
-        `;
-        grid.insertBefore(card, grid.firstChild);
     }
 
     function openImageViewer(url) {
