@@ -173,30 +173,31 @@
     }
 
     // --- 2. 確認裁切並送出給 AI ---
-    function confirmCropAndScan() {
+  function confirmCropAndScan() {
         if (!cropper) return;
         
-        // 隱藏裁切視窗，顯示 Loading 視窗
         document.getElementById('crop-modal').classList.add('hidden');
         document.getElementById('ocr-modal').classList.remove('hidden');
         document.getElementById('ai-loading').classList.remove('hidden');
         document.getElementById('ai-form').classList.add('hidden');
 
-        // 將裁切後的畫面轉換為 Blob 檔案
+        // 💡 加入 fillColor: '#fff'，防止裁切後的背景變成全黑
         cropper.getCroppedCanvas({
-            maxWidth: 1500, // 限制最大寬度避免檔案過大
-            maxHeight: 1500
+            maxWidth: 1500, 
+            maxHeight: 1500,
+            fillColor: '#fff' 
         }).toBlob(async (blob) => {
             if (cropper) { cropper.destroy(); cropper = null; }
             
-            // 建立預覽圖
             currentImageURL = URL.createObjectURL(blob);
             document.getElementById('preview-img').src = currentImageURL;
 
-            // 傳送給 AI
             try {
                 const response = await fetch(`${PROXY_URL}analyze`, { method: 'POST', body: blob });
                 const result = await response.json();
+                
+                // 💡 加回偵錯訊息，這樣我們就能看到 AI 到底回傳了什麼
+                console.log("🤖 AI 真實回傳結果:", result);
                 
                 if (result.error) { alert("❌ AI 錯誤：" + result.error); return; }
                 
@@ -217,13 +218,13 @@
 
             } catch (err) {
                 console.error(err);
-                alert("❌ 解析失敗");
+                alert("❌ 解析失敗，請檢查瀏覽器 Console 尋找原因。");
             } finally {
                 document.getElementById('ai-loading').classList.add('hidden');
                 document.getElementById('ai-form').classList.remove('hidden');
                 document.getElementById('file-input').value = "";
             }
-        }, 'image/jpeg', 0.85); // 輸出 JPEG 格式，品質 85%
+        }, 'image/jpeg', 0.85);
     }
 
     // --- 3. Notion 同步邏輯 ---
